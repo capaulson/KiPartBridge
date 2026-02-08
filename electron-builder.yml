@@ -1,0 +1,31 @@
+appId: com.kipartbridge.app
+productName: KiPartBridge
+directories:
+  output: out
+files:
+  - src/main/**/*
+  - src/preload/**/*
+  - src/renderer/**/*
+  - "!**/*.pyc"
+extraResources:
+  - from: dist/python/kipartbridge-sidecar
+    to: python/kipartbridge-sidecar
+    filter:
+      - "**/*"
+mac:
+  target: dmg
+  category: public.app-category.developer-tools
+  identity: null
+dmg:
+  title: KiPartBridge
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+linux:
+  target: AppImage
+win:
+  target: nsis

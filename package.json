@@ -1,0 +1,35 @@
+{
+  "name": "kipartbridge",
+  "version": "1.0.0",
+  "main": "src/main/index.js",
+  "description": "KiPartBridge — KiCad component library manager",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "build:renderer": "vite build",
+    "build:python": "bash build_python.sh",
+    "build": "npm run build:python && npm run build:renderer && electron-builder",
+    "test:python": "PYTHONPATH=src/python pytest tests/ -v"
+  },
+  "keywords": [
+    "kicad",
+    "electronics",
+    "eda"
+  ],
+  "author": "Chris Paulson",
+  "license": "MIT",
+  "dependencies": {
+    "electron-store": "^11.0.2",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "electron": "^40.2.1",
+    "@electron/rebuild": "^4.0.3",
+    "@tailwindcss/vite": "^4.1.18",
+    "@vitejs/plugin-react": "^5.1.3",
+    "electron-builder": "^26.7.0",
+    "tailwindcss": "^4.1.18",
+    "vite": "^7.3.1"
+  }
+}

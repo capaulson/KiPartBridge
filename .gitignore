@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+*.egg-info/
+dist/
+
+# Node
+node_modules/
+out/
+
+# App data
+staging/
+*.db
+kicad_libs/
+
+# Test fixtures (large ZIPs)
+tests/fixtures/*.zip
+
+# Build
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Screenshots / debug artifacts
+*.png
+
+# Playwright
+.playwright-mcp/
