@@ -12,9 +12,13 @@ Notes:
 - Symbol filename is a timestamp, NOT the MPN.
 - MPN is best extracted from the symbol file content (symbol name).
 - May contain legacy .lib files (KiCad v5 format).
+- DigiKey also serves SnapEDA-originated models through UL infrastructure,
+  which may have different symbol formatting (no pin_names on first line).
 """
 
 import os
+import re
+from urllib.parse import unquote
 
 from models import ComponentFiles, Provider
 from extractors.base import BaseExtractor
@@ -63,6 +67,10 @@ class UltraLibrarianExtractor(BaseExtractor):
         # Guess MPN from symbol content (the symbol name inside the file)
         mpn = self._extract_mpn_from_symbol(symbol_file) if symbol_file else None
 
+        # Fallback: try to get MPN from the referrer URL (e.g. DigiKey product page)
+        if not mpn and referrer_url:
+            mpn = self._mpn_from_referrer_url(referrer_url)
+
         # Fallback: try to get MPN from the source URL
         if not mpn and source_url:
             mpn = self._mpn_from_url(source_url)
@@ -92,7 +100,8 @@ class UltraLibrarianExtractor(BaseExtractor):
         """Read the symbol name from a .kicad_sym file.
 
         The symbol name is the MPN in Ultra Librarian downloads.
-        Looks for: (symbol "STM32C071RBT6" ...)
+        Looks for the top-level: (symbol "PART_NAME" ...
+        Skips sub-symbols (those with _N_N suffix) and UUIDs.
         """
         if not symbol_path or not os.path.exists(symbol_path):
             return None
@@ -100,13 +109,30 @@ class UltraLibrarianExtractor(BaseExtractor):
             with open(symbol_path, 'r') as f:
                 for line in f:
                     line = line.strip()
-                    if line.startswith('(symbol "') and 'pin_names' in line:
-                        # Extract name between first pair of quotes
+                    if line.startswith('(symbol "'):
                         start = line.index('"') + 1
                         end = line.index('"', start)
-                        return line[start:end]
+                        name = line[start:end]
+                        # Skip sub-symbols (e.g. "PartName_0_1")
+                        if re.search(r'_\d+_\d+$', name):
+                            continue
+                        # Skip UUIDs
+                        if self._looks_like_uuid(name):
+                            continue
+                        return name
         except (OSError, ValueError):
             pass
+        return None
+
+    def _mpn_from_referrer_url(self, url: str) -> str | None:
+        """Try to extract MPN from a referrer URL.
+
+        DigiKey product page: /en/products/detail/{mfr}/{MPN}/{dk-pn}
+        """
+        url = unquote(url)
+        m = re.search(r'/en/products/detail/[^/]+/([^/]+)/\d+', url)
+        if m:
+            return m.group(1)
         return None
 
     def _mpn_from_url(self, url: str) -> str | None:
@@ -114,5 +140,16 @@ class UltraLibrarianExtractor(BaseExtractor):
         # URLs like: .../STMicroelectronics/STM32C071RBT6
         parts = url.rstrip('/').split('/')
         if len(parts) >= 2:
-            return parts[-1].split('?')[0]
+            candidate = parts[-1].split('?')[0]
+            # Reject UUIDs
+            if not self._looks_like_uuid(candidate):
+                return candidate
         return None
+
+    @staticmethod
+    def _looks_like_uuid(name: str) -> bool:
+        """Check if a string looks like a UUID (8-4-4-4-12 hex pattern)."""
+        return bool(re.match(
+            r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+            name, re.IGNORECASE
+        ))

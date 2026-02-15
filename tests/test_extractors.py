@@ -43,6 +43,53 @@ class TestUltraLibrarianExtractor:
         result = extractor.extract(ul_fixture_path, str(tmp_path))
         assert result.mpn == "STM32C071RBT6"
 
+    def test_mpn_from_symbol_without_pin_names(self, tmp_path):
+        """MPN should be extracted even when pin_names is on a separate line."""
+        # Simulate SnapEDA-originated symbol served through UL infrastructure
+        sym_content = '''(kicad_symbol_lib (version 20211014) (generator kicad_symbol_editor)
+  (symbol "KSC721J_LFS"
+    (pin_names (offset 1.016))
+    (in_bom yes) (on_board yes)
+    (property "Reference" "SW" (at 0 0 0) (effects (font (size 1.27 1.27))))
+    (symbol "KSC721J_LFS_0_1"
+      (rectangle (start -2.54 2.54) (end 2.54 -2.54))
+    )
+  )
+)'''
+        # Create UL-style ZIP structure
+        zip_path = str(tmp_path / "test.zip")
+        with zipfile.ZipFile(zip_path, 'w') as zf:
+            zf.writestr("KiCADv6/some-uuid.kicad_sym", sym_content)
+            zf.writestr("KiCADv6/footprints.pretty/KSC721J.kicad_mod",
+                         '(footprint "KSC721J" (layer "F.Cu"))')
+
+        extractor = UltraLibrarianExtractor()
+        result = extractor.extract(zip_path, str(tmp_path / "out"))
+        assert result.mpn == "KSC721J_LFS"
+
+    def test_mpn_uuid_in_symbol_falls_back_to_referrer(self, tmp_path):
+        """When symbol name is a UUID, fall back to DigiKey referrer URL."""
+        uuid_name = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        sym_content = f'(kicad_symbol_lib (version 20211014)\n  (symbol "{uuid_name}"\n  )\n)'
+        zip_path = str(tmp_path / "test.zip")
+        with zipfile.ZipFile(zip_path, 'w') as zf:
+            zf.writestr(f"KiCADv6/{uuid_name}.kicad_sym", sym_content)
+
+        extractor = UltraLibrarianExtractor()
+        result = extractor.extract(
+            zip_path, str(tmp_path / "out"),
+            source_url=f"https://app.ultralibrarian.com/download/{uuid_name}",
+            referrer_url="https://www.digikey.com/en/products/detail/c-k/KSC721J-LFS/2414969"
+        )
+        assert result.mpn == "KSC721J-LFS"
+
+    def test_mpn_uuid_rejected_from_source_url(self, tmp_path):
+        """UUID in source URL should not be used as MPN."""
+        extractor = UltraLibrarianExtractor()
+        uuid_name = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        assert extractor._looks_like_uuid(uuid_name)
+        assert extractor._mpn_from_url(f"https://app.ultralibrarian.com/download/{uuid_name}") is None
+
 
 class TestSnapEDAExtractor:
     """Tests for SnapEDA extractor MPN extraction."""
